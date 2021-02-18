@@ -57,23 +57,24 @@ func createRegistry(name string) error {
 	if len(nodeList) == 0 {
 		return fmt.Errorf("no nodes found for cluster %q", name)
 	}
-	fmt.Println(nodeList)
+	err = createContainer(name)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
 // https://github.com/rpardini/docker-registry-proxy#simple-no-auth-all-cache
 func createContainer(name string) error {
 	args := []string{
-		"--rm",
 		"--net", kindNetwork,
 		"--name", fmt.Sprintf("docker-registry-proxy-%s", name),
 		"--label", fmt.Sprintf("%s=%s", clusterLabelKey, name),
 		"-e", "ENABLE_MANIFEST_CACHE=true",
-		"-e", "REGISTRIES=\"k8s.gcr.io gcr.io quay.io your.own.registry another.public.registry\"",
+		"-e", "REGISTRIES=\"k8s.gcr.io gcr.io quay.io docker.io\"",
 		"--restart=on-failure:1",
 		dockerRegistryProxyImage,
 	}
-
 	if err := exec.Command("docker", args...).Run(); err != nil {
 		return errors.Wrap(err, "docker run error")
 	}
