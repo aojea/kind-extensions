@@ -3,12 +3,14 @@ package cmd
 import (
 	"fmt"
 	"os/exec"
+	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 
 	"sigs.k8s.io/kind/pkg/cluster"
 	kindnodes "sigs.k8s.io/kind/pkg/cluster/nodes"
+	"sigs.k8s.io/kind/pkg/cluster/nodeutils"
 	kindcmd "sigs.k8s.io/kind/pkg/cmd"
 )
 
@@ -71,6 +73,11 @@ func createRegistry(cmd *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	err = configureCluster(name, nodeList)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -95,9 +102,47 @@ func createContainer(name string, retain bool) error {
 		}
 		return errors.Wrap(err, "docker run error")
 	}
+	// TODO: this is a hack to wait until container is running and certifates are created and exposed
+	time.Sleep(5 * time.Second)
 	return nil
 }
 
-func configureCluster(nodes []kindnodes.Node) error {
+func configureCluster(name string, nodes []kindnodes.Node) error {
+	proxyURL := fmt.Sprintf("http://docker-registry-proxy-%s:3128/", name)
+	systemdProxyConfig := `
+	[Service]
+	Environment="HTTP_PROXY=` + proxyURL + `"
+	Environment="HTTPS_PROXY="` + proxyURL + `"
+	`
+
+	for _, n := range nodes {
+		// Install the environment variables
+		err := nodeutils.WriteFile(n, "/etc/systemd/system/containerd.service.d/http-proxy.conf", systemdProxyConfig)
+		if err != nil {
+			return err
+		}
+		// Download proxy certificates
+		// man update-ca-certificates
+		// Furthermore  all  certificates  with  a  .crt  extension  found below /usr/local/share/ca-
+		// certificates are also included as implicitly trusted.
+		cmd := n.Command("curl", "-o", "/usr/local/share/ca-certificates/docker_registry_proxy.crt", proxyURL+"ca.crt")
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "failed to download certificate")
+		}
+		cmd = n.Command("update-ca-certificates")
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "failed to download certificate")
+		}
+		// Reload containerd to pick up the changes
+		cmd = n.Command("systemctl", "daemon-reload")
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "failed to download certificate")
+		}
+		cmd = n.Command("systemctl", "restart", "containerd")
+		if err := cmd.Run(); err != nil {
+			return errors.Wrap(err, "failed to download certificate")
+		}
+	}
+
 	return nil
 }
