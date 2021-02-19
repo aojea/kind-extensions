@@ -92,9 +92,16 @@ func createContainer(name string, retain bool) error {
 		"-e", "ENABLE_MANIFEST_CACHE=true",
 		"-e", "REGISTRIES=k8s.gcr.io gcr.io quay.io", // TODO: pass environment variables directly
 		"--restart=on-failure:1", // same as KIND
-		dockerRegistryProxyImage,
 	}
 
+	// TODO add as an option
+	debugArgs := []string{
+		"-e", "DEBUG=true",
+		"-e", "DEBUG_HUB=true",
+	}
+	args = append(args, debugArgs...)
+
+	args = append(args, dockerRegistryProxyImage+"-debug")
 	if err := exec.Command("docker", args...).Run(); err != nil {
 		// try to clean as much as possible if retain not enabled
 		if !retain {
@@ -110,10 +117,10 @@ func createContainer(name string, retain bool) error {
 func configureCluster(name string, nodes []kindnodes.Node) error {
 	proxyURL := fmt.Sprintf("http://docker-registry-proxy-%s:3128/", name)
 	systemdProxyConfig := `
-	[Service]
-	Environment="HTTP_PROXY=` + proxyURL + `"
-	Environment="HTTPS_PROXY="` + proxyURL + `"
-	`
+[Service]
+Environment="HTTP_PROXY=` + proxyURL + `"
+Environment="HTTPS_PROXY=` + proxyURL + `"
+`
 
 	for _, n := range nodes {
 		// Install the environment variables
