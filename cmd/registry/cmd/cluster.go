@@ -56,8 +56,6 @@ func configureCluster(cmd *cobra.Command) error {
 
 	// configure local registry as a mirror in all nodes
 	mirrorRegistry := `
-[plugins."io.containerd.grpc.v1.cri".registry.mirrors]
-	[plugins."io.containerd.grpc.v1.cri".registry.mirrors."*"]
 [plugins."io.containerd.grpc.v1.cri".registry]
 	[plugins."io.containerd.grpc.v1.cri".registry.mirrors]
 	   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."*"]
