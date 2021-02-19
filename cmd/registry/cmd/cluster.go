@@ -58,7 +58,14 @@ func configureCluster(cmd *cobra.Command) error {
 	mirrorRegistry := `
 [plugins."io.containerd.grpc.v1.cri".registry.mirrors]
 	[plugins."io.containerd.grpc.v1.cri".registry.mirrors."*"]
-	endpoint = ["` + registryURL + `"]
+[plugins."io.containerd.grpc.v1.cri".registry]
+	[plugins."io.containerd.grpc.v1.cri".registry.mirrors]
+	   [plugins."io.containerd.grpc.v1.cri".registry.mirrors."*"]
+	   endpoint = ["` + registryURL + `"]
+   [plugins."io.containerd.grpc.v1.cri".registry.configs]
+	   [plugins."io.containerd.grpc.v1.cri".registry.configs."*"]
+			[plugins."io.containerd.grpc.v1.cri".registry.configs."*".tls]
+			  insecure_skip_verify = true 
 `
 
 	for _, n := range nodeList {
