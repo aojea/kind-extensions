@@ -4,7 +4,6 @@ import (
 	"os/exec"
 
 	"github.com/spf13/cobra"
-	"sigs.k8s.io/kind/pkg/cluster"
 )
 
 // deleteCmd represents the delete command
@@ -19,9 +18,4 @@ var deleteCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(deleteCmd)
-	deleteCmd.Flags().String(
-		"name",
-		cluster.DefaultName,
-		"the cluster context name",
-	)
 }
