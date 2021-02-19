@@ -19,6 +19,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// name of the kind local registry
+const registry = "kind-local-registry"
+
 var rootCmd = &cobra.Command{
 	Use:   "registry",
 	Short: "Use container registries with KIND",
