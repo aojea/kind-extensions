@@ -13,7 +13,7 @@ import (
 )
 
 const (
-	dockerRegistryProxyImage = "ghcr.io/rpardini/docker-registry-proxy:0.6.2"
+	dockerRegistryProxyImage = "rpardini/docker-registry-proxy:0.6.3"
 	// clusterLabelKey is applied to each "node" docker container for identification
 	clusterLabelKey = "io.x-k8s.kind.extension.cluster"
 	kindNetwork     = "kind"
@@ -25,11 +25,7 @@ var createCmd = &cobra.Command{
 	Short: "Create a container registry for the specified KIND cluster",
 	Long:  "Create a container registry for the specified KIND cluster",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		name, err := cmd.Flags().GetString("name")
-		if err != nil {
-			return err
-		}
-		return createRegistry(name)
+		return createRegistry(cmd)
 	},
 }
 
@@ -40,10 +36,24 @@ func init() {
 		cluster.DefaultName,
 		"the cluster context name",
 	)
+	createCmd.Flags().Bool(
+		"retain",
+		false,
+		"don't clean the registry container",
+	)
 	// TODO: add authentication
 }
 
-func createRegistry(name string) error {
+func createRegistry(cmd *cobra.Command) error {
+	name, err := cmd.Flags().GetString("name")
+	if err != nil {
+		return err
+	}
+	retain, err := cmd.Flags().GetBool("retain")
+	if err != nil {
+		return err
+	}
+
 	logger := kindcmd.NewLogger()
 	provider := cluster.NewProvider(
 		cluster.ProviderWithLogger(logger),
@@ -57,7 +67,7 @@ func createRegistry(name string) error {
 	if len(nodeList) == 0 {
 		return fmt.Errorf("no nodes found for cluster %q", name)
 	}
-	err = createContainer(name)
+	err = createContainer(name, retain)
 	if err != nil {
 		return err
 	}
@@ -65,17 +75,24 @@ func createRegistry(name string) error {
 }
 
 // https://github.com/rpardini/docker-registry-proxy#simple-no-auth-all-cache
-func createContainer(name string) error {
-	args := []string{
-		"--net", kindNetwork,
-		"--name", fmt.Sprintf("docker-registry-proxy-%s", name),
-		"--label", fmt.Sprintf("%s=%s", clusterLabelKey, name),
+func createContainer(name string, retain bool) error {
+	containerName := fmt.Sprintf("docker-registry-proxy-%s", name)
+	args := []string{"run",
+		"-d",                 // run in the background
+		"--net", kindNetwork, // attach to the KIND network
+		"--name", containerName, // well known name
+		"--label", fmt.Sprintf("%s=%s", clusterLabelKey, name), // label as a KIND cluster node
 		"-e", "ENABLE_MANIFEST_CACHE=true",
-		"-e", "REGISTRIES=\"k8s.gcr.io gcr.io quay.io docker.io\"",
-		"--restart=on-failure:1",
+		"-e", "REGISTRIES=k8s.gcr.io gcr.io quay.io", // TODO: pass environment variables directly
+		"--restart=on-failure:1", // same as KIND
 		dockerRegistryProxyImage,
 	}
+
 	if err := exec.Command("docker", args...).Run(); err != nil {
+		// try to clean as much as possible if retain not enabled
+		if !retain {
+			exec.Command("docker", "rm", "-f", containerName).Run()
+		}
 		return errors.Wrap(err, "docker run error")
 	}
 	return nil
